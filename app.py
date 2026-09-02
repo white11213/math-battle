@@ -10,13 +10,11 @@ app.config['SECRET_KEY'] = 'secret_key'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 DB_FILE = 'math_battle.db'
-
-    
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # 1. テーブルの作成（問題文: text, 答え: answer, 制限時間: time_limit）
+    # 1. テーブル作成
     c.execute('''CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         text TEXT,
@@ -24,30 +22,13 @@ def init_db():
         time_limit INTEGER
     )''')
 
-    # 2. サンプル問題データ（3つの要素で構成）
-    samples = [
-        (r"関数 $f(x) = x^3 - 3x^2 + 4$ の極小値を求めよ。", "0", 60),
-        # ・・・（お手元の問題リストをそのままここに並べる）・・・
-        (r"1から9までの番号がついたカードから同時に2枚を選ぶとき、その積が偶数となる確率を求めよ。, "13/18", 60),
-    ]
-
-    # 3. 未登録の問題だけを自動で追加する処理
-    for text, answer, time_limit in samples:
-        c.execute("SELECT COUNT(*) FROM questions WHERE text = ?", (text,))
-        if c.fetchone()[0] == 0:
-            c.execute(
-                "INSERT INTO questions (text, answer, time_limit) VALUES (?, ?, ?)",
-                (text, answer, time_limit)
-            )
-
-    conn.commit()
-    conn.close()    # 整数と分数が混ざったサンプル問題（偏差値60レベル）
-           samples = [
-             c.executema (r"極限 $\lim_{n \to \infty} \frac{1}{n^3} \sum_{k=1}^n k^2$ の値を求めよ。, "1/3", 60),
+    # 2. 問題リスト（ここに必要な問題をすべてまとめる）
+    samples = [(r"関数 $f(x) = x^3 - 3x^2 + 4$ の極小値を求めよ。", "0", 60),
+            (r"極限 $\lim_{n \to \infty} \frac{1}{n^3} \sum_{k=1}^n k^2$ の値を求めよ。, "1/3", 60),
             (r"方程式 $\log_2(x) + \log_2(x-3) = 2$ を解け。", "4", 60),
             (r"定積分 $\int_0^1 x^2 \, dx$ の値を求めよ。", "1/3", 60),
             (r"初項 $2$、公差 $3$ の等差数列の第10項を求めよ。", "29", 60),
-            (r"2次方程式 $2x^2 - 5x + 2 = 0$ の解のうち、小さい方の値を求めよ。（入力例: 1/2）", "1/2", 90)    
+            (r"2次方程式 $2x^2 - 5x + 2 = 0$ の解のうち、小さい方の値を求めよ。, "1/2", 90)    
      　　　 (r"関数 $f(x) = x^3 - 3x^2 + 4$ の極小値を求めよ。", "0", 60),
             (r"極限 $\lim_{n \to \infty} \frac{1}{n^2} \sum_{k=1}^{n} k^2$ の値を求めよ。（入力例: 1/3）", "1/3", 60),
             (r"方程式 $\log_2(x) + \log_2(x-3) = 2$ を解け。", "4", 60),
@@ -55,7 +36,7 @@ def init_db():
             (r"初項 $2$、公差 $3$ の等差数列の第10項を求めよ。", "29", 45),
             (r"ベクトル $\vec{a}=(2,1)$, $\vec{b}=(1,3)$ のなす角 $\theta$ を求めよ。（$0^\circ \le \theta \le 180^\circ$）", "45", 60),
             (r"方程式 $z^3 = 1$ の虚数解のうち、虚部が正であるものを $\omega$ とする。$\omega^2 + \omega + 1$ の値を求めよ。", "0", 60),
-            (r"放物線 $y = x^2$ と直線 $y = 2x + 3$ で囲まれた部分の面積を求めよ。（入力例: 32/3）", "32/3", 90),
+            (r"放物線 $y = x^2$ と直線 $y = 2x + 3$ で囲まれた部分の面積を求めよ。, "32/3", 90),
             (r"赤球4個、白球6個が入った袋から同時に3個を取り出すとき、少なくとも1個が赤球である確率を求めよ。（入力例: 5/6）", "5/6", 60),
             (r"不等式 $|2x - 5| \le 3$ を満たす整数 $x$ の個数を求めよ。", "4", 45)
             (r"曲線 $y = e^x$ 上の点 $(1, e)$ における接線と $x$ 軸、$y$ 軸で囲まれた部分の面積を求めよ。（入力例: e/4）", "e/4", 90),
@@ -66,22 +47,34 @@ def init_db():
             (r"方程式 $z^4 = -1$ の解のうち、複素数平面上で第1象限にあるものを求めよ。", "(1+i)/sqrt(2)", 120),
             (r"放物線 $y = x^2$ 上の点 $(1, 1)$ における法線と、この放物線で囲まれた部分の面積を求めよ。", "4/3", 90) 
             (r"定積分 $\int_0^{\pi/2} \sin^3 x \, dx$ の値を求めよ。", "2/3", 60),
-            (r"曲線 $y = x \log x$ の極小値を求めよ。（入力例: -1/e）", "-1/e", 90),
+            (r"曲線 $y = x \log x$ の極小値を求めよ。, "-1/e", 90),
             (r"極限 $\lim_{x \to 0} \frac{1 - \cos 3x}{x^2}$ の値を求めよ。", "9/2", 60),
-            (r"1から9までの番号がついたカードから同時に2枚を選ぶとき、その積が偶数となる確率を求めよ。", "13/18", 60),
+            (r"1から9までの番号がついたカードから同時に2枚を選ぶとき、その積が偶数となる確率を求めよ。, "13/18", 60),
             (r"A, B, C, D, E の5人が1列に並ぶとき、AとBが隣り合わない確率を求めよ。", "3/5", 60),
             (r"三角形ABCにおいて $AB=3, BC=4, CA=2$ のとき、$\cos \angle A$ の値を求めよ。", "-1/4", 60),
             (r"点 $(2, 3)$ から円 $x^2 + y^2 = 1$ に引いた2本の接線のなす角を $\theta$ とするとき、$\tan \frac{\theta}{2}$ の値を求めよ。", "1/\sqrt{12}", 90),
-(r"漸化式 $a_1=1, a_{n+1} = 2a_n + 1$ で定まる数列の一般項 $a_n$ に対し、$a_6$ の値を求めよ。", "63", 60),
+            (r"漸化式 $a_1=1, a_{n+1} = 2a_n + 1$ で定まる数列の一般項 $a_n$ に対し、$a_6$ の値を求めよ。", "63", 60),
             (r"和 $\sum_{k=1}^{n} k \cdot 2^k$ において、$n=5$ のときの実数値を求めよ。", "258", 90),      
-(r"方程式 $x^3 - 3x^2 + 3x - 1 = 0$ の解を求めよ。", "1", 45),
-            (r"複素数 $z = \frac{1 + \sqrt{3}i}{2}$ のとき、$z^6$ の値を求めよ。", "1", 60)
-        ]
+            (r"方程式 $x^3 - 3x^2 + 3x - 1 = 0$ の解を求めよ。", "1", 45),
+            (r"複素数 $z = \frac{1 + \sqrt{3}i}{2}$ のとき、$z^6$ の値を求めよ。", "1", 60)]
+             
 
-ny("INSERT INTO questions (text, answer, time_limit) VALUES (?, ?, ?)", samples)
+           # 3. 未登録のものだけを安全に追加する
+    for text, answer, time_limit in samples:
+        c.execute("SELECT COUNT(*) FROM questions WHERE text = ?", (text,))
+        if c.fetchone()[0] == 0:
+            c.execute(
+                "INSERT INTO questions (text, answer, time_limit) VALUES (?, ?, ?)",
+                (text, answer, time_limit)
+            )
+
+    # 4. 最後に保存して閉じる（※ループの後ろに1回だけ書く！）
     conn.commit()
     conn.close()
 
+# 関数を呼び出す
+init_db()
+    
 init_db()
 
 def get_random_question():
