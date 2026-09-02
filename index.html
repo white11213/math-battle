@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- スマホ対応の必須タグ -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学・速解対決</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <!-- KaTeX (数式表示用) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        .hidden { display: none; }
+        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
+        input[type="text"], input[type="number"] { padding: 8px; width: 80%; margin: 5px 0; font-size: 16px; }
+        button { padding: 10px 15px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        #question_text { font-size: 1.2em; margin: 20px 0; padding: 15px; background: #f8f9fa; }
+        #timer { font-size: 1.5em; font-weight: bold; color: red; }
+    </style>
+</head>
+<body>
+
+    <div id="login_screen" class="box">
+        <h2>プレイヤー登録</h2>
+        <input type="text" id="username" placeholder="名前を入力">
+        <button onclick="joinGame()">参加する</button>
+    </div>
+
+    <div id="lobby_screen" class="box hidden">
+        <h2>ロビー / 順位表</h2>
+        <ul id="leaderboard"></ul>
+        
+        <hr>
+        <h3>ゲーム設定</h3>
+        問題数: <input type="number" id="q_count" value="3" min="1" style="width:50px;">
+        <button onclick="startGame()">ゲーム開始</button>
+
+        <hr>
+        <h3>問題を追加する</h3>
+        <input type="text" id="new_q_text" placeholder="問題文 (TeX形式OK, 例: $\int x dx$)"><br>
+        <input type="text" id="new_q_ans" placeholder="答えの数値"><br>
+        制限時間(秒): <input type="number" id="new_q_time" value="60"><br>
+        <button onclick="addQuestion()">追加して保存</button>
+    </div>
+
+    <div id="game_screen" class="box hidden">
+        <h2>第 <span id="q_num"></span> 問</h2>
+        <div id="timer"></div>
+        <div id="question_text"></div>
+        
+        <input type="text" id="answer_input" placeholder="答えを入力">
+        <button onclick="submitAnswer()">解答送信</button>
+        <p id="result_msg"></p>
+        <hr>
+        <h4>現在の順位</h4>
+        <ul id="game_leaderboard"></ul>
+    </div>
+
+    <script>
+        const socket = io();
+        let timerInterval;
+
+        function renderMath() {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ]
+            });
+        }
+
+        function joinGame() {
+            const name = document.getElementById('username').value;
+            if(!name) return;
+            socket.emit('join', {name: name});
+            document.getElementById('login_screen').classList.add('hidden');
+            document.getElementById('lobby_screen').classList.remove('hidden');
+        }
+
+        function addQuestion() {
+            socket.emit('add_question', {
+                text: document.getElementById('new_q_text').value,
+                answer: document.getElementById('new_q_ans').value,
+                time: document.getElementById('new_q_time').value
+            });
+            alert('問題を追加しました！');
+            document.getElementById('new_q_text').value = '';
+            document.getElementById('new_q_ans').value = '';
+        }
+
+        function startGame() {
+            const count = document.getElementById('q_count').value;
+            socket.emit('start_game', {q_count: count});
+        }
+
+        function submitAnswer() {
+            const ans = document.getElementById('answer_input').value;
+            socket.emit('submit_answer', {answer: ans});
+            document.getElementById('answer_input').value = '';
+        }
+
+        socket.on('update_players', (players) => {
+            let html = players.map(p => `<li>${p.name}: ${p.score}点 ${p.answered ? '(解答済)' : ''}</li>`).join('');
+            document.getElementById('leaderboard').innerHTML = html;
+            document.getElementById('game_leaderboard').innerHTML = html;
+        });
+
+        socket.on('new_question', (data) => {
+            document.getElementById('lobby_screen').classList.add('hidden');
+            document.getElementById('game_screen').classList.remove('hidden');
+            document.getElementById('question_text').innerHTML = data.q_text;
+            document.getElementById('result_msg').innerText = '';
+            renderMath(); // KaTeXで数式をレンダリング
+
+            // タイマー処理
+            clearInterval(timerInterval);
+            let timeLeft = data.time_limit;
+            document.getElementById('timer').innerText = `残り時間: ${timeLeft}秒`;
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').innerText = `残り時間: ${timeLeft}秒`;
+                if(timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    socket.emit('submit_answer', {answer: 'TIME_OUT'}); // 時間切れ送信
+                }
+            }, 1000);
+        });
+
+        socket.on('answer_result', (data) => {
+            if(data.correct) {
+                document.getElementById('result_msg').innerText = "正解！他のプレイヤーを待っています...";
+            } else {
+                document.getElementById('result_msg').innerText = "不正解...または時間切れ";
+            }
+        });
+
+        socket.on('game_over', (players) => {
+            clearInterval(timerInterval);
+            document.getElementById('game_screen').classList.add('hidden');
+            document.getElementById('lobby_screen').classList.remove('hidden');
+            alert('ゲーム終了！');
+        });
+    </script>
+</body>
+</html>
