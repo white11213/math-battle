@@ -1,17 +1,17 @@
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+from flask import Flask, render_template, request
+from flask_socketio import SocketIO, emit
 import sqlite3
 import random
 import math
 from fractions import Fraction
-from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key'
-DB_FILE = 'math_battle.db'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-def init_db():
 
+DB_FILE = 'math_battle.db'
+
+def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS questions 
