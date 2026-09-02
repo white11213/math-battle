@@ -217,12 +217,11 @@ def handle_get_question():
     q = get_random_question()
     if q:
         emit('question', q)
-
 @socketio.on('start_game')
 def handle_start_game(data=None):
     q = get_random_question()
     if q:
-        emit('game_started', q, broadcast=True)
+        emit('game_started', q, broadcast=True) 
 
-if __name__ == '__main__':
-　　socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+if __name__ == '__main__': 
+    socketio.run(app, host='0.0.0.0', port=5000)
