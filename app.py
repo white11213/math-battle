@@ -126,25 +126,39 @@ def handle_add_q(data):
     conn.close()
 
 @socketio.on('start_game')
-def handle_start(data):
-    q_count = int(data['q_count'])
+def handle_start(data=None):
+    q_count = 3
+    if isinstance(data, dict) and 'q_count' in data:
+        try:
+            q_count = int(data['q_count'])
+        except (ValueError, TypeError):
+            q_count = 3
+    elif isinstance(data, (int, str)):
+        try:
+            q_count = int(data)
+        except (ValueError, TypeError):
+            q_count = 3
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT * FROM questions")
     all_q = c.fetchall()
     conn.close()
-    
+
+    if not all_q:
+        return
+
     if len(all_q) < q_count:
         q_count = len(all_q)
-        
+
     game_state['current_questions'] = random.sample(all_q, q_count)
     game_state['current_q_index'] = 0
     game_state['is_playing'] = True
     for p in game_state['players'].values():
         p['score'] = 0
-    
-    send_next_question()
 
+    send_next_question()    
+  
 def send_next_question():
     for p in game_state['players'].values():
         p['answered'] = False
