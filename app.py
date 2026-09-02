@@ -43,6 +43,20 @@ def init_db():
 
 init_db()
 
+def get_random_question():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT text, answer, time_limit FROM questions ORDER BY RANDOM() LIMIT 1")
+    question = c.fetchone()
+    conn.close()
+    if question:
+        return {
+            "text": question[0],
+            "answer": question[1],
+            "time_limit": question[2]
+        }
+    return None
+
 game_state = {
     'is_playing': False,
     'players': {},
