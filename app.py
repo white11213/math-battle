@@ -201,6 +201,28 @@ def handle_disconnect():
     if sid in game_state['players']:
         del game_state['players'][sid]
         emit('update_players', get_leaderboard(), broadcast=True)
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/get_question', methods=['GET'])
+def api_get_question():
+    q = get_random_question()
+    if q:
+        return jsonify(q)
+    return jsonify({'error': 'No questions available'}), 404
+
+@socketio.on('get_question')
+def handle_get_question():
+    q = get_random_question()
+    if q:
+        emit('question', q)
+
+@socketio.on('start_game')
+def handle_start_game(data=None):
+    q = get_random_question()
+    if q:
+        emit('game_started', q, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+　　socketio.run(app, host='0.0.0.0', port=5000, debug=True)
