@@ -204,14 +204,6 @@ def handle_disconnect():
 @app.route('/')
 def index():
     return render_template('index.html')
-
-@app.route('/api/get_question', methods=['GET'])
-def api_get_question():
-    q = get_random_question()
-    if q:
-        return jsonify(q)
-    return jsonify({'error': 'No questions available'}), 404
-
 @socketio.on('get_question')
 def handle_get_question():
     q = get_random_question()
@@ -223,5 +215,5 @@ def handle_start_game(data=None):
     if q:
         emit('game_started', q, broadcast=True) 
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
