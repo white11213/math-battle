@@ -1,5 +1,4 @@
-from gevent import monkey
-monkey.patch_all()
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 import sqlite3
 import random
 import math
