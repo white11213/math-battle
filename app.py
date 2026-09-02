@@ -90,7 +90,6 @@ def get_random_question():
             'answer': question[1],
             'time_limit': question[2]
         }
-    return None
 game_state = {
     'is_playing': False,
     'players': {},
@@ -103,6 +102,13 @@ game_state = {
 def index():
     return render_template('index.html')
 
+@app.route('/api/get_question', methods=['GET'])
+def api_get_question():
+    q = get_random_question()
+    if q:
+        return jsonify(q)
+    return jsonify({'error': 'No questions available'}), 404
+
 @socketio.on('join')
 def handle_join(data):
     sid = request.sid
@@ -114,7 +120,7 @@ def handle_join(data):
 def handle_add_q(data):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("INSERT INTO questions (text, answer, time_limit) VALUES (?, ?, ?)", 
+    c.execute("INSERT INTO questions (text, answer, time_limit) VALUES (?, ?, ?)",
               (data['text'], data['answer'].strip(), int(data['time'])))
     conn.commit()
     conn.close()
@@ -145,43 +151,33 @@ def send_next_question():
     game_state['finish_count'] = 0
     
     q = game_state['current_questions'][game_state['current_q_index']]
-    emit('new_question', {'q_text': q[1], 'time_limit': q[3]}, broadcast=True)
+    emit('new_question', {'id': q[0], 'text': q[1], 'time_limit': q[3]}, broadcast=True)
     emit('update_players', get_leaderboard(), broadcast=True)
 
-# 整数や分数を柔軟に判定する関数
 def check_math_answer(user_ans, correct_ans):
-    user_ans = user_ans.strip()
-    correct_ans = correct_ans.strip()
-    if user_ans == correct_ans:
-        return True
-    
     try:
-        # PythonのFraction（分数ライブラリ）を使って、値として等しいか判定する
-        # 例: "2/4" と "1/2" や、"3" と "3/1" を同じものとみなす
-        if Fraction(user_ans) == Fraction(correct_ans):
+        if user_ans.strip() == correct_ans.strip():
             return True
+        return Fraction(user_ans) == Fraction(correct_ans)
     except:
-        pass
-    
-    return False
+        return False
 
 @socketio.on('submit_answer')
 def handle_answer(data):
     sid = request.sid
     if not game_state['is_playing'] or game_state['players'][sid]['answered']:
         return
-
+    
     q = game_state['current_questions'][game_state['current_q_index']]
     game_state['players'][sid]['answered'] = True
     game_state['finish_count'] += 1
     
-    # 柔軟な正誤判定を実行
     if check_math_answer(data['answer'], q[2]):
         game_state['players'][sid]['score'] += 1
         emit('answer_result', {'correct': True})
     else:
         emit('answer_result', {'correct': False})
-
+        
     threshold = math.ceil(len(game_state['players']) / 2.0)
     if game_state['finish_count'] >= threshold:
         game_state['current_q_index'] += 1
@@ -201,19 +197,6 @@ def handle_disconnect():
     if sid in game_state['players']:
         del game_state['players'][sid]
         emit('update_players', get_leaderboard(), broadcast=True)
-@app.route('/')
-def index():
-    return render_template('index.html')
-@socketio.on('get_question')
-def handle_get_question():
-    q = get_random_question()
-    if q:
-        emit('question', q)
-@socketio.on('start_game')
-def handle_start_game(data=None):
-    q = get_random_question()
-    if q:
-        emit('game_started', q, broadcast=True) 
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
